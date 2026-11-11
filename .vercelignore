@@ -1,0 +1,12 @@
+.env*
+.git
+.playwright-cli
+output
+database
+scripts
+*.sql
+*.log
+README.md
+start.ps1
+router.php
+config.local.php

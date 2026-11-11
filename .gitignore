@@ -1,0 +1,11 @@
+/config.local.php
+/output/
+/.playwright-cli/
+*.log
+.env*
+
+.vercel
+/backups/
+/*.sql
+*.zip
+*.tmp

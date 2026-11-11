@@ -1,0 +1,4 @@
+Options -Indexes
+<FilesMatch "(^\.|\.sql$|^(config\.php|README\.md|start\.ps1|router\.php|vercel\.json)$)">
+    Require all denied
+</FilesMatch>

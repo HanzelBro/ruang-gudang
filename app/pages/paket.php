@@ -1,0 +1,25 @@
+<?php
+$resi=param('resi');
+if($resi):
+    $p=row('SELECT * FROM paket WHERE no_resi=?',[$resi]);
+    if(!$p) { http_response_code(404); emptyState('Paket tidak ditemukan','Periksa kembali nomor resi Anda.'); return; }
+    $history=rows('SELECT a.*,r.kode_rak,r.zona,t.nama_petugas FROM alokasi_rak a JOIN rak_gudang r USING(id_rak) JOIN petugas t USING(id_petugas) WHERE no_resi=? ORDER BY waktu_masuk DESC,id_alokasi DESC',[$resi]);
+    $shipping=row('SELECT g.*,t.nama_petugas FROM pengiriman g JOIN petugas t USING(id_petugas) WHERE no_resi=?',[$resi]);
+    echo '<a class="back-link" href="'.e(url('paket')).'">← Kembali ke daftar paket</a>';
+    heading('DETAIL KIRIMAN',$p['no_resi'],'Informasi paket dan seluruh riwayat pergerakannya.',modalButton('Edit paket','paket-form','edit','secondary'));
+?>
+<div class="detail-grid"><section class="panel detail-card"><div class="panel-head"><h2>Informasi paket</h2><?=badge($p['status_paket'])?></div><dl class="definition-grid"><div><dt>Pengirim</dt><dd><?=e($p['nama_pengirim'])?></dd></div><div><dt>Penerima</dt><dd><?=e($p['nama_penerima'])?></dd></div><div><dt>Kota tujuan</dt><dd><?=e($p['kota_tujuan'])?></dd></div><div><dt>Kategori</dt><dd><?=e($p['kategori'])?></dd></div><div><dt>Berat</dt><dd><?=kg($p['berat_kg'])?></dd></div><div><dt>Lokasi aktif</dt><dd><?=e(implode(', ',array_column(array_filter($history,fn($h)=>$h['status_alokasi']==='Aktif'),'kode_rak'))?:'—')?></dd></div></dl><div class="detail-actions"><?php
+if($p['status_paket']==='Diterima') echo linkButton('Tempatkan ke rak',url('inbound',['resi'=>$resi,'open'=>'alokasi-form']),'in');
+if($p['status_paket']==='Tersimpan') echo linkButton('Pindahkan rak',url('inbound',['resi'=>$resi,'open'=>'pindah-form']),'swap','secondary').actionForm('siap','outbound',['no_resi'=>$resi],'Tandai siap kirim');
+if($p['status_paket']==='Siap Kirim') echo linkButton('Catat pengiriman',url('outbound',['resi'=>$resi,'open'=>'kirim-form']),'truck');
+if(!$history&&!$shipping)echo actionForm('paket_delete','paket',['no_resi'=>$resi],'Hapus paket','trash',true);
+?></div></section><section class="panel"><div class="panel-head"><h2>Riwayat pergerakan</h2><?=icon('clock')?></div><div class="timeline"><?php if($shipping):?><div class="timeline-item"><span class="timeline-dot orange-bg"></span><strong>Diserahkan ke kurir</strong><small><?=e(stamp($shipping['waktu_kirim']))?></small><p><?=e($shipping['nama_kurir'])?> · <?=e($shipping['no_kendaraan'])?><br>Dicatat oleh <?=e($shipping['nama_petugas'])?></p><?=badge($shipping['status_kirim'],true)?></div><?php endif;foreach($history as $h):?><div class="timeline-item"><span class="timeline-dot navy-bg"></span><strong>Penempatan di <?=e($h['kode_rak'])?></strong><small><?=e(stamp($h['waktu_masuk']))?></small><p><?=e($h['zona'])?> · <?=e($h['nama_petugas'])?></p><?=badge($h['status_alokasi'])?></div><?php endforeach;if(!$history&&!$shipping)emptyState('Menunggu penempatan','Paket sudah tercatat dan dapat dialokasikan ke rak.');?></div></section></div>
+<?php packageDialog($p);return;endif;
+$q=param('q');$status=param('status');$cat=param('kategori');$city=param('kota');$conditions=['1=1'];$bind=[];
+if($q!==''){$conditions[]='(p.no_resi LIKE ? OR p.nama_penerima LIKE ? OR p.nama_pengirim LIKE ?)';array_push($bind,"%$q%","%$q%","%$q%");}
+foreach(['status_paket'=>$status,'kategori'=>$cat,'kota_tujuan'=>$city] as $col=>$v)if($v!==''){$conditions[]="p.$col=?";$bind[]=$v;}
+$packages=packageRows(implode(' AND ',$conditions),$bind);
+heading('','Paket','Cari paket, lihat statusnya, atau catat paket baru.',modalButton('Terima paket','paket-form'));
+?>
+<section class="panel"><div class="panel-head"><h2>Daftar paket <span class="count-pill"><?=count($packages)?></span></h2><span class="muted">Data tersimpan di gudang</span></div><form class="filter-bar" method="get"><input type="hidden" name="page" value="paket"><label class="search-field"><?=icon('search')?><input name="q" value="<?=e($q)?>" placeholder="Cari resi, pengirim, penerima" aria-label="Cari paket"></label><select name="status" aria-label="Filter status"><option value="">Semua status</option><?php foreach(['Diterima','Tersimpan','Siap Kirim','Terkirim'] as $s):?><option <?=$status===$s?'selected':''?>><?=e($s)?></option><?php endforeach;?></select><select name="kategori" aria-label="Filter kategori"><option value="">Semua kategori</option><?php foreach(categories() as $s):?><option <?=$cat===$s?'selected':''?>><?=e($s)?></option><?php endforeach;?></select><select name="kota" aria-label="Filter kota"><option value="">Semua tujuan</option><?php foreach(rows('SELECT DISTINCT kota_tujuan FROM paket ORDER BY kota_tujuan') as $s):?><option <?=$city===$s['kota_tujuan']?'selected':''?>><?=e($s['kota_tujuan'])?></option><?php endforeach;?></select><button class="button secondary">Terapkan</button><?php if($q||$status||$cat||$city):?><a class="text-link" href="<?=e(url('paket'))?>">Reset</a><?php endif;?></form><?php packageTable($packages);?><div class="panel-foot muted">Menampilkan <?=count($packages)?> paket</div></section>
+<?php packageDialog(); ?>
